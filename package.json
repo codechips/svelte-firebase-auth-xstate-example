@@ -9,7 +9,14 @@
     "svelte": "^3.24.0"
   },
   "devDependencies": {
+    "firebase": "^7.16.1",
+    "postcss": "^7.0.32",
+    "postcss-preset-env": "^6.7.0",
+    "prettier": "^2.0.5",
+    "prettier-plugin-svelte": "^1.1.0",
+    "svelte-preprocess": "^4.0.8",
     "svite": "^0.3.0",
+    "tailwindcss": "^1.5.2",
     "vite": "^1.0.0-rc.3"
   }
 }
