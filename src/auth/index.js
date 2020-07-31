@@ -1,6 +1,7 @@
 import firebase from 'firebase/app';
 import 'firebase/auth';
-import { readable } from 'svelte/store';
+import { useMachine } from './useMachine';
+import { initAuthMachine } from './authMachine';
 
 const userMapper = claims => ({
 	id: claims.user_id,
@@ -20,34 +21,44 @@ export const initAuth = (useRedirect = false) => {
 	const loginWithGoogle = () => {
 		const provider = new firebase.auth.GoogleAuthProvider();
 
-		if (useRedirect) {
-			return auth.signInWithRedirect(provider);
-		} else {
-			return auth.signInWithPopup(provider);
-		}
+		return useRedirect
+			? auth.signInWithRedirect(provider)
+			: auth.signInWithPopup(provider);
 	};
 
-	const logout = () => auth.signOut();
-
-	// wrap Firebase user in a Svelte readable store
-	const user = readable(null, set => {
-		const unsub = auth.onAuthStateChanged(async fireUser => {
-			if (fireUser) {
-				const token = await fireUser.getIdTokenResult();
-				const user = userMapper(token.claims);
-				set(user);
-			} else {
-				set(null);
+	const services = {
+		authChecker: () =>
+			// wrap the onAuthStateChanged hook in a promise and
+			// immediately unsubscribe when triggered
+			new Promise((resolve, reject) => {
+				const unsubscribe = firebase.auth().onAuthStateChanged(auth => {
+					unsubscribe();
+					return auth ? resolve(auth) : reject();
+				});
+			}),
+		authenticator: (_, event) => {
+			if (event.provider === 'email') {
+				return loginWithEmailPassword(event.email, event.password);
+			} else if (event.provider === 'google') {
+				return loginWithGoogle();
 			}
-		});
-
-		return unsub;
-	});
-
-	return {
-		user,
-		loginWithGoogle,
-		loginWithEmailPassword,
-		logout
+		},
+		loader: (ctx, _) => {
+			return new Promise(resolve => {
+				setTimeout(() => {
+					// auth object is already set on the app context
+					// by authChecker service
+					ctx.auth
+						.getIdTokenResult()
+						.then(({ claims }) => userMapper(claims))
+						.then(resolve);
+				}, 1500);
+			});
+		},
+		logout: () => auth.signOut()
 	};
+
+	const authMachine = initAuthMachine(services);
+
+	return useMachine(authMachine);
 };
